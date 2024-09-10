@@ -3,6 +3,7 @@ import numpy as np
 from collections import defaultdict, Counter
 import random
 from datetime import datetime
+from openpyxl import load_workbook
 
 #Path til vaktliste
 file_path = "Vaktønsker Lyche Kjøkken V24 uke 39 & 40.xlsx"
@@ -51,7 +52,7 @@ chefs_availability = chefs_availability[
     chefs_availability['Kokk'].notna()
 ]
 
-#If Chef have not doodled => available all shifts, except from hangarounds or pangs
+#If Chef have not doodled => available all shifts, except from hangarounds and pangs
 for index, row in chefs_availability.iterrows():
    if index >= hangarounds_row_index[0]:
        break
@@ -174,33 +175,85 @@ def check_schedule(schedule_df):
         schedule_finished = False
 
     # Write to excel file
-    print(f'Excluded chefs: {excluded_chefs}')
+    #print(f'Excluded chefs: {excluded_chefs}')
     #print(f'Duplicated chefs: {duplicate_chefs}')
 
-    return schedule_finished
+    return schedule_finished, excluded_chefs
       
+week_1_finished = False
+week_2_finished = False
+
+# Re-run assign_chefs-function to minimize number of excluded chefs
+""" count_1 = 0
+excluded_chefs_1 = [None]*10
+print("Week 1:")
+while not week_1_finished:
+    shift_schedule_week_1 = assign_chefs(week_1_df)
+    temp_excluded_chefs_1 = excluded_chefs_1
+    week_1_finished, excluded_chefs_1 = check_schedule(shift_schedule_week_1)
+    if len(excluded_chefs_1) < len(temp_excluded_chefs_1):
+        final_excluded_chefs_1 = excluded_chefs_1
+    
+    count_1 += 1
+    if count_1 > 100:
+        print("Could not solve restrictions")
+        break
+
+print(f"Excluded chefs: {excluded_chefs_1}")
+
+
+count_2 = 0
+excluded_chefs_2 = [None]*10
+print("Week 2:")
+while not week_2_finished:
+    shift_schedule_week_2 = assign_chefs(week_2_df)
+    temp_excluded_chefs_2 = excluded_chefs_2
+    week_2_finished, excluded_chefs_2 = check_schedule(shift_schedule_week_2)
+    if len(excluded_chefs_2) < len(temp_excluded_chefs_2):
+        final_excluded_chefs_2 = excluded_chefs_2
+    
+    count_2 += 1
+    if count_2 > 200:
+        print("Could not solve restrictions")
+        break
+
+print(f"Excluded chefs: {excluded_chefs_2}") """
+
 
 shift_schedule_week_1 = assign_chefs(week_1_df)
-check_schedule(shift_schedule_week_1)
-
 shift_schedule_week_2 = assign_chefs(week_2_df)
-check_schedule(shift_schedule_week_2)
 
-
+# Write schedules to excel files
 file_path_week_1 = 'Chef_Shifts_Week_1.xlsx'
 file_path_week_2 = 'Chef_Shifts_Week_2.xlsx'
-shift_schedule_week_1.to_excel(file_path_week_1, index_label = 'Skift uke 1')
-shift_schedule_week_2.to_excel(file_path_week_2, index_label = 'Skift uke 2')
 
+
+
+# Make pretty excel-file
+def save_to_file(schedule_df,file_path):
+    schedule_df.to_excel(file_path, index_label = file_path[17]+'. uke')
+    workbook = load_workbook(file_path)
+    worksheet = workbook.active
+
+    column_widths = [11, 30, 30, 30, 30]  # Column widths
+    for i, width in enumerate(column_widths, start=1):
+        worksheet.column_dimensions[worksheet.cell(row=1, column=i).column_letter].width = width
+
+    workbook.save(file_path)
+
+save_to_file(shift_schedule_week_1, file_path_week_1)
+save_to_file(shift_schedule_week_2, file_path_week_2)
 
 print(f"Schedule saved to {file_path_week_1} and {file_path_week_2}")
 
 
 #TODO
-# Sjekke at alle kokker er inkludert og lage metode for å inkludre kokker som er til overs
+# Håndtere ekskluderte kokker
+# Implementere følgende restriksjoner:
+#   Alle vakter skal være fylt opp om mulig
+#   Alle aktive kokker skal være inkludert med mindre de er helt opptatt
+# Gjøre output-fil finere og mer oversiktlig
 # Legge inn håndtering av 'Kan om nødvendig'
 # Skille mellom nye og gamle kokker
 # Håndtering av vanlige errors
 # Fikse slik at det fungerer med ulike antall sheets og brøkdeler av uker
-
-
