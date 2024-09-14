@@ -179,7 +179,7 @@ def check_schedule(availability_df):
             best_num_empty_slots = num_empty_slots
         counter += 1
     
-    print(f"Empty slots: {num_empty_slots}")
+    #print(f"Empty slots: {num_empty_slots}")
 
     
     assigned_chefs = final_schedule_df.values.ravel().tolist()
@@ -204,8 +204,8 @@ def check_schedule(availability_df):
     #       Alternatively, romove this shift from the dictionary
 
     # Write this to excel file?
-    print(f'Excluded chefs: {len(excluded_chefs)}{excluded_chefs}')
-    print(f'Duplicated chefs: {duplicate_chefs}')
+    #print(f'Excluded chefs: {len(excluded_chefs)}{excluded_chefs}')
+    #print(f'Duplicated chefs: {duplicate_chefs}')
 
     return final_schedule_df, excluded_chefs
     
@@ -239,11 +239,11 @@ file_path_week_2 = 'Chef_Shifts_Week_2.xlsx'
 
 shift_schedule_week_1, excluded_chefs_1 = check_schedule(week_1_df)
 save_to_file(shift_schedule_week_1, file_path_week_1, excluded_chefs_1)
-print(shift_schedule_week_1)
+#print(shift_schedule_week_1)
 
 shift_schedule_week_2, excluded_chefs_2 = check_schedule(week_2_df)
 save_to_file(shift_schedule_week_2, file_path_week_2, excluded_chefs_2)
-print(shift_schedule_week_2)
+#print(shift_schedule_week_2)
 
 #hangs_and_pangs = []
 #week_1_df = check_schedule
