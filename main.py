@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font
 
 #Path til vaktliste
-vaktliste_file_path = "Vaktønsker Lyche Kjøkken V24 uke 39 & 40.xlsx"
+vaktliste_file_path = "test_data/Vaktønsker uke 41 & 42.xlsx"
 number_of_shifts_week_1 = 14
 number_of_shifts_week_2 = 14
 
@@ -79,6 +79,13 @@ for index, row in chefs_availability.iterrows():
 
 #print(chefs_availability[45:65])
 
+doodled_chefs = active_chefs.copy()
+for chef in hangs_and_pangs:
+    chef_row = chefs_availability.loc[chefs_availability['Kokk'] == chef]
+    if chef_row.iloc[:, 1:].eq("Kan jobbe!").any(axis=1).values[0]:
+        doodled_chefs.append(chef)
+
+
 week_1_df = chefs_availability.iloc[:, 0:number_of_shifts_week_1+1]
 week_2_df = chefs_availability.iloc[:, [0] + list(range(number_of_shifts_week_1+1, number_of_shifts_week_1+number_of_shifts_week_2+1))]
 
@@ -121,11 +128,7 @@ def assign_chefs(availability_df):
     # Print the sorted dictionary
     #print(sorted_shifts)
 
-    #Currently unused
-    schedule_finished = False
-    failsafe = 0
 
-    #while not schedule_finished:
     temp_df = availability_df.copy()
     for shift in sorted_shifts:
         number_of_chefs = get_num_of_chefs(shift)
@@ -150,7 +153,6 @@ def assign_chefs(availability_df):
 
     schedule_df = pd.DataFrame.from_dict(schedule, orient='index') # Load dictionary to dataframe
     schedule_df.columns = [f"Kokk {i+1}" for i in range(schedule_df.shape[1])] # Set column names
-    schedule_finished = not schedule_df.isnull().values.any() # Check for empty slots in schedule
 
     
 
@@ -168,12 +170,12 @@ def assign_chefs(availability_df):
 def check_schedule(availability_df):
     # Check for empty slots
     num_empty_slots = 10
-    best_num_empty_slots = 10
+    best_num_empty_slots = 20
     counter = 0
-    max_iterations = 500
-    while num_empty_slots >= 5 and counter < max_iterations:
+    max_iterations = 200
+    while num_empty_slots >= 0 and counter < max_iterations:
         schedule_df = assign_chefs(availability_df)
-        num_empty_slots = schedule_df.isna().sum().sum()
+        num_empty_slots = schedule_df.iloc[:,:3].isna().sum().sum()
         if num_empty_slots < best_num_empty_slots:
             final_schedule_df = schedule_df
             best_num_empty_slots = num_empty_slots
@@ -193,25 +195,53 @@ def check_schedule(availability_df):
 
     # Check for excluded chefs
     excluded_chefs = []
-    for chef in active_chefs:
+    for chef in doodled_chefs:
         if chef not in assigned_chefs:
             excluded_chefs.append(chef)
-
-    #for chef in excluded_chefs:
-    #   find available shifts for chefs an add to dictionary
-    #   if available on a 13-21 shift put there
-    #   Add the shift to a list of non-prioritized shifts such that other excluded shifts ar put on other shifts
-    #       Alternatively, romove this shift from the dictionary
 
     # Write this to excel file?
     #print(f'Excluded chefs: {len(excluded_chefs)}{excluded_chefs}')
     #print(f'Duplicated chefs: {duplicate_chefs}')
 
     return final_schedule_df, excluded_chefs
+
+
+def add_excluded_chefs_to_schedule(schedule_df, excluded_chefs, availability_df):
+    
+    still_excluded_chefs = []
+
+    chef_count_per_shift = schedule_df.notna().sum(axis=1) # Number of chefs per shift
+
+    for chef in excluded_chefs:
+        # Find the available shifts for the chef
+        chef_row = availability_df.loc[availability_df['Kokk'] == chef]
+        available_shifts = chef_row.iloc[:, 2:][chef_row.iloc[:, 2:] == "Kan jobbe!"].dropna(axis=1).columns.tolist()
+
+        if available_shifts:  # If the chef has available shifts
+            # Check the shifts with the least number of chefs and try to assign the chef
+            for shift in available_shifts:
+                min_chef_shift = chef_count_per_shift.idxmin()  # Find shift with the fewest chefs
+
+                # If there's an empty spot in the shift, assign the chef
+                if schedule_df.loc[min_chef_shift].isna().any():
+                    first_empty_slot = schedule_df.loc[min_chef_shift].isna().idxmax()
+                    schedule_df.loc[min_chef_shift, first_empty_slot] = chef
+
+                    # Update the number of chefs in each shift after assignment
+                    chef_count_per_shift = schedule_df.notna().sum(axis=1)
+                    break  # Once chef is assigned, move to the next chef
+
+        else:
+            # If no available shifts, add chef to still_excluded_chefs list
+            still_excluded_chefs.append(chef)
+
+    # Return the updated schedule and the list of chefs that couldn't be assigned
+    return schedule_df, still_excluded_chefs
+
     
 # Save schedule to excel-file ab\nd make it pretty
 def save_to_file(schedule_df,file_path, excluded_chefs):
-    schedule_df.to_excel(file_path, index_label = file_path[17]+'. uke')
+    schedule_df.to_excel(file_path, index_label = file_path[27]+'. uke')
     workbook = load_workbook(file_path)
     worksheet = workbook.active
 
@@ -232,26 +262,27 @@ def save_to_file(schedule_df,file_path, excluded_chefs):
     workbook.save(file_path)
 
 
+def remove_scheduled_hangs_and_pangs(schedule_df):
+    for chef in hangs_and_pangs:
+        if chef in schedule_df.values:
+            week_2_df.loc[week_2_df['Kokk'] == chef, week_2_df.columns[1:]] = "Opptatt"
+
 
 # Write schedules to excel files
-file_path_week_1 = 'Chef_Shifts_Week_1.xlsx'
-file_path_week_2 = 'Chef_Shifts_Week_2.xlsx'
+file_path_week_1 = 'test_data/Chef_Shifts_Week_1.xlsx'
+file_path_week_2 = 'test_data/Chef_Shifts_Week_2.xlsx'
 
 shift_schedule_week_1, excluded_chefs_1 = check_schedule(week_1_df)
-save_to_file(shift_schedule_week_1, file_path_week_1, excluded_chefs_1)
+final_schedule_week_1, final_excluded_chefs_1 = add_excluded_chefs_to_schedule(shift_schedule_week_1, excluded_chefs_1, week_1_df)
+save_to_file(final_schedule_week_1, file_path_week_1, final_excluded_chefs_1)
+
+remove_scheduled_hangs_and_pangs(shift_schedule_week_1)
 #print(shift_schedule_week_1)
+#print(week_2_df[52:])
 
 shift_schedule_week_2, excluded_chefs_2 = check_schedule(week_2_df)
 save_to_file(shift_schedule_week_2, file_path_week_2, excluded_chefs_2)
 #print(shift_schedule_week_2)
-
-#hangs_and_pangs = []
-#week_1_df = check_schedule
-# for chef in hangs_and_pangs:
-#   if chef in week_1_df:
-#           set as "Opptatt" for week 2 availabilityu dataframe
-#week_2_df = 
-
 
 
 
@@ -259,17 +290,16 @@ print(f"Schedule saved to {file_path_week_1} and {file_path_week_2}")
 
 
 #TODO
-# Sørge for å ha minst en gammel kokk på skift
-
+# Optimering: 1. Sørge for å ha minst to kokker på skift
 # Håndtere ekskluderte kokker, som ikke er HELT opptatt
-# Håndtere hangs/pangs som doodler begge uker men vil kun ha ett skift. Løsning lage begge schedules parallelt
 
-# Gjøre output-fil finere og mer oversiktlig
+# Legge schedules inn i en fil, to sheets, samme format som sendt på mail
 # Legge inn håndtering av ulike dato-formater i input fil
 
 
 # Håndtering av vanlige errors
 # Fikse slik at det fungerer med brøkdeler av uker
 # Legge inn håndtering av 'Kan om nødvendig'
+# Gjøre koden raskere. Implementere AC3?
 
 #Noen nye kokker som mangler?
